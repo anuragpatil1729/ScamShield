@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import '../models/classification_result.dart';
 import '../models/message_model.dart';
+import 'v4_spam_model.dart';
 import 'rule_scorer.dart';
 
 /// Abstract contract for Spam / Phishing / Fraud classification engines.
@@ -15,64 +18,28 @@ abstract class SpamClassifierService {
 }
 
 /// ============================================================================
-/// DETECTION PIPELINE: LAYER 2 ON-DEVICE DISTILBERT
+/// DETECTION PIPELINE: LAYER 2 ON-DEVICE DISTILBERT CLASSIFIER
 /// ============================================================================
 
-/// Layer 2 – On-device DistilBERT
-/// Primary ML detector (Classify message intent and suspicious linguistic patterns locally)
 class Layer2OnDeviceDistilBERT {
+  final V4SpamModel _model = V4SpamModel();
+
   Future<Layer2DistilBertResult> infer(
     String text, {
     String? sender,
     Map<String, double>? features,
   }) async {
-    // Simulates local on-device DistilBERT inference latency (e.g. TFLite / ONNX runtime)
-    await Future.delayed(const Duration(milliseconds: 150));
-
-    final lower = text.toLowerCase();
-    double bertRisk = 0.04;
-    String detectedIntent = 'legitimate_communication';
-    final List<String> linguisticPatterns = [];
-
-    // Evaluate embeddings and intent
-    if (lower.contains('kyc') || (lower.contains('account') && lower.contains('block'))) {
-      bertRisk = 0.94;
-      detectedIntent = 'credential_harvesting_phishing';
-      linguisticPatterns.add('DistilBERT: Coercive account de-activation syntax');
-    } else if (lower.contains('won') ||
-        lower.contains('lottery') ||
-        lower.contains('cashback') ||
-        lower.contains('prize') ||
-        lower.contains('jackpot')) {
-      bertRisk = 0.91;
-      detectedIntent = 'advance_fee_lottery_lure';
-      linguisticPatterns.add('DistilBERT: Hyperbolic reward promise syntax');
-    } else if (lower.contains('delivery') ||
-        lower.contains('package') ||
-        lower.contains('parcel') ||
-        lower.contains('on hold')) {
-      bertRisk = 0.86;
-      detectedIntent = 'courier_fee_impersonation';
-      linguisticPatterns.add('DistilBERT: Bogus delivery discrepancy format');
-    } else if (lower.contains('crypto') ||
-        lower.contains('investment') ||
-        lower.contains('telegram') ||
-        lower.contains('earn money') ||
-        lower.contains('airdrop')) {
-      bertRisk = 0.62;
-      detectedIntent = 'unsolicited_commercial_solicitation';
-      linguisticPatterns.add('DistilBERT: Financial recruitment vernacular');
-    } else {
-      bertRisk = 0.04;
-      detectedIntent = 'conversational_safe';
-      linguisticPatterns.add('DistilBERT: Normal contextual linguistic embeddings');
-    }
+    final prediction = await _model.classify(text);
 
     return Layer2DistilBertResult(
-      distilBertRiskScore: bertRisk,
-      detectedIntent: detectedIntent,
-      confidence: 0.92,
-      linguisticPatterns: linguisticPatterns,
+      distilBertRiskScore: prediction.spamProbability,
+      detectedIntent: prediction.label,
+      confidence: math
+          .max(prediction.spamProbability, 1 - prediction.spamProbability)
+          .toDouble(),
+      linguisticPatterns: [
+        'DistilBERT v4 ONNX: ${prediction.label} (${(prediction.spamProbability * 100).round()}% spam probability)',
+      ],
     );
   }
 }
@@ -131,7 +98,7 @@ class Layer3FallbackResult {
 class DecisionAndRiskEngine {
   ClassificationResult resolve({
     required RuleScorerResult layer1,
-    required Layer2DistilBertResult layer2,
+    Layer2DistilBertResult? layer2,
     Layer3FallbackResult? layer3,
   }) {
     final List<String> allReasons = [];
@@ -151,7 +118,7 @@ class DecisionAndRiskEngine {
     }
 
     // Add Layer 2 linguistic patterns
-    allReasons.addAll(layer2.linguisticPatterns);
+    allReasons.addAll(layer2?.linguisticPatterns ?? const []);
 
     final MessageCategory category;
     final double finalRiskScore;
@@ -163,10 +130,13 @@ class DecisionAndRiskEngine {
     if (layer1.route == 'deliver') {
       category = MessageCategory.notSpam;
       finalRiskScore = (layer1.scamScore * 0.1).clamp(0.0, 0.15);
-      statusDescription = 'Low risk: Safe message verified by Layer 1. Delivered directly.';
+      statusDescription =
+          'Low risk: Safe message verified by Layer 1. Delivered directly.';
     } else {
       // Forwarded to Layer 2 ML Model
-      double combined = (layer1.scamScore * 0.45) + (layer2.distilBertRiskScore * 0.55);
+      final layer2Result = layer2!;
+      double combined =
+          (layer1.scamScore * 0.45) + (layer2Result.distilBertRiskScore * 0.55);
 
       if (layer3 != null && layer3.fallbackInvoked) {
         combined += layer3.llmRiskAdjustment;
@@ -182,11 +152,13 @@ class DecisionAndRiskEngine {
       } else if (combined >= 0.30 || layer1.scamScore >= 0.30) {
         // Suspicious -> Yellow: Proceed with caution
         category = MessageCategory.sus;
-        statusDescription = 'Suspicious flags found. Exercise caution before opening links.';
+        statusDescription =
+            'Suspicious flags found. Exercise caution before opening links.';
       } else {
         // Cleared by Layer 2 ML -> Green: Safe
         category = MessageCategory.notSpam;
-        statusDescription = 'Low risk: Cleared by on-device ML detector. Safe to open.';
+        statusDescription =
+            'Low risk: Cleared by on-device ML detector. Safe to open.';
       }
     }
 
@@ -200,7 +172,9 @@ class DecisionAndRiskEngine {
       maskedLinks: maskedLinks,
       ruleScore: layer1.score,
       layer1Route: layer1.route,
-      layer1Hits: layer1.scamHits.map((h) => '${h.category}: ${h.match}').toList(),
+      layer1Hits: layer1.scamHits
+          .map((h) => '${h.category}: ${h.match}')
+          .toList(),
       features: layer1.features,
     );
   }
@@ -225,10 +199,10 @@ class HeuristicMockClassifierService implements SpamClassifierService {
   };
 
   @override
-  String get modelName => 'Layer 1 Rule Scorer + On-device DistilBERT Pipeline';
+  String get modelName => 'Layer 1 Rule Scorer + DistilBERT v4 ONNX';
 
   @override
-  String get modelVersion => 'v2.1.0-rules-ml';
+  String get modelVersion => 'v4-rules-onnx';
 
   Layer1RuleScorer get ruleScorer => _ruleScorer;
 
@@ -239,9 +213,11 @@ class HeuristicMockClassifierService implements SpamClassifierService {
     Map<String, dynamic>? metadata,
   }) async {
     // 1. Layer 1 – Rule-based scam scorer
-    final knownContacts = (metadata?['known_contacts'] as Iterable<String>?) ?? const [];
+    final knownContacts =
+        (metadata?['known_contacts'] as Iterable<String>?) ?? const [];
     final verifiedSenders =
-        (metadata?['verified_senders'] as Map<String, String?>?) ?? defaultVerifiedSenders;
+        (metadata?['verified_senders'] as Map<String, String?>?) ??
+        defaultVerifiedSenders;
 
     final ruleResult = _ruleScorer.scoreMessage(
       text,
@@ -250,18 +226,22 @@ class HeuristicMockClassifierService implements SpamClassifierService {
       verifiedSenders: verifiedSenders,
     );
 
-    // 2. Layer 2 – On-device DistilBERT Primary ML Detector
-    final layer2Result = await _layer2.infer(
-      text,
-      sender: sender,
-      features: ruleResult.features,
-    );
+    // 2. Layer 2 – On-device DistilBERT for messages routed onward by Layer 1
+    final layer2Result = ruleResult.route == 'deliver'
+        ? null
+        : await _layer2.infer(
+            text,
+            sender: sender,
+            features: ruleResult.features,
+          );
 
     // 3. Layer 3 – Optional LLM Fallback (borderline check)
-    final layer3Result = await _layer3.evaluateBorderline(
-      text,
-      combinedConfidence: layer2Result.confidence,
-    );
+    final layer3Result = layer2Result == null
+        ? null
+        : await _layer3.evaluateBorderline(
+            text,
+            combinedConfidence: layer2Result.confidence,
+          );
 
     // 4. Decision and Risk Engine
     return _decisionEngine.resolve(
