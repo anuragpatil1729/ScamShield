@@ -60,6 +60,9 @@ class NotificationService {
     );
   }
 
+  Future<void> showSafeMessageNotification(MessageItem message) =>
+      handleIncomingMessageNotification(message);
+
   Future<void> showSafeNotification({
     required int id,
     required String sender,

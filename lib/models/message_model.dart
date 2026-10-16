@@ -41,6 +41,9 @@ class MessageItem {
   final bool isVerifiedSender;
   final bool isSavedContact;
   final bool isBlocked;
+  final bool isOutgoing;
+  final String chatId;
+  final bool isRead;
 
   const MessageItem({
     required this.id,
@@ -57,7 +60,10 @@ class MessageItem {
     this.isVerifiedSender = false,
     this.isSavedContact = false,
     this.isBlocked = false,
-  });
+    this.isOutgoing = false,
+    String? chatId,
+    this.isRead = false,
+  }) : chatId = chatId ?? sender;
 
   MessageItem copyWith({
     String? id,
@@ -74,6 +80,9 @@ class MessageItem {
     bool? isVerifiedSender,
     bool? isSavedContact,
     bool? isBlocked,
+    bool? isOutgoing,
+    String? chatId,
+    bool? isRead,
   }) {
     return MessageItem(
       id: id ?? this.id,
@@ -90,6 +99,9 @@ class MessageItem {
       isVerifiedSender: isVerifiedSender ?? this.isVerifiedSender,
       isSavedContact: isSavedContact ?? this.isSavedContact,
       isBlocked: isBlocked ?? this.isBlocked,
+      isOutgoing: isOutgoing ?? this.isOutgoing,
+      chatId: chatId ?? this.chatId,
+      isRead: isRead ?? this.isRead,
     );
   }
 
@@ -121,6 +133,8 @@ class MessageItem {
     DateTime parsedDate;
     if (map['created_at'] != null) {
       parsedDate = DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now();
+    } else if (map['timestamp'] != null) {
+      parsedDate = DateTime.tryParse(map['timestamp'].toString()) ?? DateTime.now();
     } else {
       parsedDate = DateTime.now();
     }
@@ -149,6 +163,30 @@ class MessageItem {
       isVerifiedSender: cat == MessageCategory.notSpam,
       isSavedContact: cat == MessageCategory.notSpam,
       isBlocked: map['is_blocked'] as bool? ?? false,
+      isOutgoing: map['is_outgoing'] as bool? ?? false,
+      chatId: map['chat_id']?.toString() ?? senderStr,
+      isRead: map['is_read'] as bool? ?? false,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'sender': sender,
+      'snippet': snippet,
+      'fullMessage': fullMessage,
+      'category': category.name,
+      'risk_percentage': riskPercentage,
+      'status_description': statusDescription,
+      'reasons': reasons,
+      'masked_links': maskedLinks,
+      'timestamp': timestamp.toIso8601String(),
+      'is_verified': isVerifiedSender,
+      'is_saved': isSavedContact,
+      'is_blocked': isBlocked,
+      'is_outgoing': isOutgoing,
+      'chat_id': chatId,
+      'is_read': isRead,
+    };
   }
 }

@@ -10,6 +10,7 @@ class AppColors {
   static const Color surfaceMuted = Color(0xFFF1F5F9);
   static const Color border = Color(0xFFE2E8F0);
   static const Color borderSubtle = Color(0xFFEDF2F7);
+  static const Color accentRed = Color(0xFFDC2626);
 
   // Brand / Dark Navy
   static const Color primaryDark = Color(0xFF0F172A);

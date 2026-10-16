@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/message_model.dart';
 
+/// SupabaseService strictly handles User Authentication (Sign Up, Sign In, Sign Out, Session).
+/// Messages are NOT stored or synced through Supabase, as the classification and chat model
+/// will be integrated locally in the app.
 class SupabaseService {
   static const String supabaseUrl = 'https://pbmufkyjuopnfmhqbbbx.supabase.co';
-  static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBibXVma3lqdW9wbmZtaHFiYmJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNjU4ODAsImV4cCI6MjEwNzc0MTg4MH0.jyYH0giRfXj34UAkD3TMPzjgmHOrGdDPI_YzxJxWB3c';
+  static const String supabasePublishableKey =
+      'sb_publishable_DtrE8rs-iBMOUBzwjzlv9g_ibo43x-E';
 
   static final SupabaseService _instance = SupabaseService._internal();
   factory SupabaseService() => _instance;
@@ -15,127 +18,67 @@ class SupabaseService {
 
   SupabaseClient get client => Supabase.instance.client;
 
+  /// Initialize Supabase with the provided publishable key
   Future<void> initialize() async {
     if (_isInitialized) return;
     try {
       await Supabase.initialize(
         url: supabaseUrl,
-        publishableKey: supabaseAnonKey,
+        publishableKey: supabasePublishableKey,
       );
       _isInitialized = true;
     } catch (e) {
-      // In case already initialized
+      debugPrint('Supabase initialization status: $e');
       _isInitialized = true;
     }
   }
 
-  /// Send a message by inserting it into the Supabase database
-  Future<Map<String, dynamic>> sendMessage({
-    required String sender,
-    required String body,
-    String subject = '',
-    String snippet = '',
-    MessageCategory category = MessageCategory.notSpam,
-    int riskPercentage = 0,
-    String statusDescription = '',
-    List<String> reasons = const [],
-    List<String> maskedLinks = const [],
+  /// Current authenticated user (if any)
+  User? get currentUser => isInitialized ? client.auth.currentUser : null;
+
+  /// Current auth session
+  Session? get currentSession => isInitialized ? client.auth.currentSession : null;
+
+  /// Whether a user is currently signed in
+  bool get isAuthenticated => currentUser != null;
+
+  /// Stream of authentication state changes
+  Stream<AuthState>? get authStateChanges =>
+      isInitialized ? client.auth.onAuthStateChange : null;
+
+  /// Sign Up a new user with email & password
+  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    String? displayName,
   }) async {
-    final categoryString = _categoryToString(category);
-    final autoSnippet = snippet.isNotEmpty
-        ? snippet
-        : (body.length > 55 ? '${body.substring(0, 52)}...' : body);
-
-    final response = await client
-        .from('messages')
-        .insert({
-          'sender': sender,
-          'subject': subject,
-          'body': body,
-          'snippet': autoSnippet,
-          'category': categoryString,
-          'risk_percentage': riskPercentage,
-          'status_description': statusDescription,
-          'reasons': reasons,
-          'masked_links': maskedLinks,
-          'is_read': false,
-          'is_blocked': false,
-        })
-        .select()
-        .single();
-
+    await initialize();
+    final response = await client.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: displayName != null && displayName.isNotEmpty
+          ? {'display_name': displayName.trim()}
+          : null,
+    );
     return response;
   }
 
-  /// Fetch all messages ordered by creation time
-  Future<List<Map<String, dynamic>>> fetchMessages() async {
-    final response = await client
-        .from('messages')
-        .select()
-        .order('created_at', ascending: false);
-
-    return List<Map<String, dynamic>>.from(response);
+  /// Sign In an existing user with email & password
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
+    await initialize();
+    final response = await client.auth.signInWithPassword(
+      email: email.trim(),
+      password: password,
+    );
+    return response;
   }
 
-  /// Subscribe to real-time incoming messages
-  RealtimeChannel subscribeToIncomingMessages({
-    required void Function(Map<String, dynamic> newRow) onInsert,
-  }) {
-    final channel = client
-        .channel('public:messages')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'messages',
-          callback: (payload) {
-            onInsert(payload.newRecord);
-          },
-        )
-        .subscribe();
-
-    return channel;
-  }
-
-  /// Delete all messages flagged as spam from Supabase
-  Future<void> deleteAllSpamMessages() async {
-    await client.from('messages').delete().eq('category', 'spam');
-  }
-
-  /// Delete a single message by ID
-  Future<void> deleteMessage(String id) async {
-    await client.from('messages').delete().eq('id', id);
-  }
-
-  /// Update message category (e.g. mark safe or spam)
-  Future<void> updateCategory(String id, MessageCategory category, int risk) async {
-    await client.from('messages').update({
-      'category': _categoryToString(category),
-      'risk_percentage': risk,
-    }).eq('id', id);
-  }
-
-  String _categoryToString(MessageCategory cat) {
-    switch (cat) {
-      case MessageCategory.spam:
-        return 'spam';
-      case MessageCategory.sus:
-        return 'sus';
-      case MessageCategory.notSpam:
-        return 'not_spam';
-    }
-  }
-
-  static MessageCategory stringToCategory(String str) {
-    switch (str.toLowerCase()) {
-      case 'spam':
-        return MessageCategory.spam;
-      case 'sus':
-        return MessageCategory.sus;
-      case 'not_spam':
-      case 'notspam':
-      case 'safe':
-      default:
-        return MessageCategory.notSpam;
-    }
+  /// Sign Out the current user
+  Future<void> signOut() async {
+    if (!isInitialized) return;
+    await client.auth.signOut();
   }
 }

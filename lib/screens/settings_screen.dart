@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/message_repository.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
+import 'auth_screen.dart';
 import 'classify_tester_sheet.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -41,6 +43,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   letterSpacing: -0.5,
                 ),
               ),
+              const SizedBox(height: 16),
+
+              // Supabase Account Card
+              _buildSupabaseAccountCard(),
               const SizedBox(height: 16),
 
               // ML / Neural Network Info Card
@@ -236,4 +242,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  Widget _buildSupabaseAccountCard() {
+    final user = SupabaseService().currentUser;
+    final isLoggedIn = user != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isLoggedIn ? const Color(0xFF81C784) : AppColors.borderSubtle,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isLoggedIn
+                  ? const Color(0xFFE8F5E9)
+                  : AppColors.primaryDark.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isLoggedIn ? Icons.verified_user_rounded : Icons.account_circle_outlined,
+              color: isLoggedIn ? const Color(0xFF2E7D32) : AppColors.primaryDark,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLoggedIn ? 'Supabase Authenticated' : 'Supabase Account',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isLoggedIn
+                      ? (user.email ?? 'Connected')
+                      : 'Sign in or create account (Auth only)',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx) => AuthScreen(
+                    onAuthSuccess: () => setState(() {}),
+                  ),
+                ),
+              ).then((_) => setState(() {}));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isLoggedIn ? AppColors.surface : AppColors.primaryDark,
+              foregroundColor: isLoggedIn ? AppColors.primaryDark : Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              side: isLoggedIn ? const BorderSide(color: AppColors.borderSubtle) : BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              isLoggedIn ? 'Manage' : 'Sign In',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
