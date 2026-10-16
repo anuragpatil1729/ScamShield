@@ -84,14 +84,19 @@ class _InboxScreenState extends State<InboxScreen> {
 
                 const SizedBox(height: 12),
 
-                // WhatsApp-style Conversations List
+                // WhatsApp-style Conversations List (Normal list items, no stretch effect)
                 Expanded(
                   child: conversations.isEmpty
                       ? _buildEmptyState(selectedFilter)
                       : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          physics: const ClampingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(vertical: 4),
                           itemCount: conversations.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 10),
+                          separatorBuilder: (context, index) => const Divider(
+                            height: 1,
+                            thickness: 0.8,
+                            color: AppColors.borderSubtle,
+                          ),
                           itemBuilder: (context, index) {
                             final conv = conversations[index];
                             return _buildConversationTile(conv);
@@ -392,27 +397,20 @@ class _InboxScreenState extends State<InboxScreen> {
           );
         }
       },
-      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: cat == MessageCategory.spam
-                ? AppColors.accentRed.withValues(alpha: 0.4)
-                : (cat == MessageCategory.sus
-                    ? const Color(0xFFFFB300).withValues(alpha: 0.4)
-                    : AppColors.borderSubtle),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+          border: Border(
+            left: BorderSide(
+              color: cat == MessageCategory.spam
+                  ? AppColors.spamBadgeText
+                  : (cat == MessageCategory.sus
+                      ? AppColors.susBadgeText
+                      : Colors.transparent),
+              width: cat != MessageCategory.notSpam ? 4 : 0,
             ),
-          ],
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,

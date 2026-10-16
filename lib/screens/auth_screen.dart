@@ -122,7 +122,7 @@ class _AuthScreenState extends State<AuthScreen> {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'Supabase Account',
+          'Login / Signup',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -177,7 +177,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Authenticated with Supabase',
+            'Account Profile',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -239,7 +239,7 @@ class _AuthScreenState extends State<AuthScreen> {
               },
               icon: const Icon(Icons.logout_rounded, color: AppColors.accentRed),
               label: const Text(
-                'Sign Out from Supabase',
+                'Sign Out',
                 style: TextStyle(
                   color: AppColors.accentRed,
                   fontWeight: FontWeight.w700,
@@ -293,7 +293,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Powered by Supabase Auth (Local ML Model Protection)',
+                  'Secure Authentication • Local ML Protection',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
@@ -523,7 +523,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   )
                 : Text(
-                    _isSignUp ? 'Sign Up with Supabase' : 'Sign In with Supabase',
+                    _isSignUp ? 'Sign Up' : 'Sign In',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
