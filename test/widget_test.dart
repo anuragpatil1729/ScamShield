@@ -4,7 +4,7 @@ import 'package:scamshield/services/message_repository.dart';
 
 void main() {
   testWidgets('ScamShield UI smoke test', (WidgetTester tester) async {
-    final repository = MessageRepository();
+    final repository = MessageRepository(enableRemoteSync: false);
     await tester.pumpWidget(ScamShieldApp(repository: repository));
     await tester.pumpAndSettle();
 

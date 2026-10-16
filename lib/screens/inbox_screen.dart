@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../widgets/filter_chip_bar.dart';
 import '../widgets/message_tile.dart';
 import 'classify_tester_sheet.dart';
+import 'compose_message_sheet.dart';
 import 'message_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -106,16 +107,31 @@ class _InboxScreenState extends State<InboxScreen> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            heroTag: 'inbox_tester_fab',
-            onPressed: () => ClassifyTesterSheet.show(context, widget.repository),
-            backgroundColor: AppColors.primaryDark,
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.bolt_rounded, size: 20),
-            label: const Text(
-              'Test Classifier',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'inbox_send_fab',
+                onPressed: () => ComposeMessageSheet.show(context, widget.repository),
+                backgroundColor: AppColors.primaryDark,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: const Text(
+                  'Send via Supabase',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 10),
+              FloatingActionButton.small(
+                heroTag: 'inbox_tester_fab',
+                onPressed: () => ClassifyTesterSheet.show(context, widget.repository),
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.textPrimary,
+                tooltip: 'Test Classifier',
+                child: const Icon(Icons.bolt_rounded, size: 20),
+              ),
+            ],
           ),
         );
       },
@@ -139,6 +155,34 @@ class _InboxScreenState extends State<InboxScreen> {
           ),
           Row(
             children: [
+              // Send Pill
+              GestureDetector(
+                onTap: () => ComposeMessageSheet.show(context, widget.repository),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.send_rounded, size: 14, color: AppColors.textPrimary),
+                      SizedBox(width: 5),
+                      Text(
+                        'Send',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               // Search Pill
               GestureDetector(
                 onTap: () {

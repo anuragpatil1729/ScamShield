@@ -25,8 +25,8 @@ class AppColors {
   static const Color bannerBlueBg = Color(0xFFEFF6FF);
   static const Color bannerBlueText = Color(0xFF1E3A8A);
 
-  // SPAM Colors (Screen 1, 4, 5)
-  static const Color spamItemBg = Color(0xFFFFF2F2);
+  // SPAM Colors (Red theme)
+  static const Color spamItemBg = Color(0xFFFFEEEE);
   static const Color spamBadgeBg = Color(0xFFFEE2E2);
   static const Color spamBadgeText = Color(0xFFDC2626);
   static const Color spamAvatarBg = Color(0xFFFEE2E2);
@@ -38,7 +38,7 @@ class AppColors {
   static const Color spamBannerText = Color(0xFF991B1B);
   static const Color spamDashedBorder = Color(0xFFDC2626);
 
-  // NOT SPAM Colors (Screen 1, 2)
+  // NOT SPAM Colors (White/Clean theme)
   static const Color notSpamItemBg = Color(0xFFFFFFFF);
   static const Color notSpamBadgeBg = Color(0xFFDCFCE7);
   static const Color notSpamBadgeText = Color(0xFF059669);
@@ -48,8 +48,8 @@ class AppColors {
   static const Color notSpamRiskText = Color(0xFF047857);
   static const Color notSpamActionPrimary = Color(0xFF0F172A);
 
-  // SUS Colors (Suspicious / Warning)
-  static const Color susItemBg = Color(0xFFFFFDF5);
+  // SUS Colors (Yellow theme)
+  static const Color susItemBg = Color(0xFFFFFBEA);
   static const Color susBadgeBg = Color(0xFFFEF3C7);
   static const Color susBadgeText = Color(0xFFD97706);
   static const Color susAvatarBg = Color(0xFFFEF3C7);

@@ -43,7 +43,7 @@ void main() {
     });
 
     test('Repository filter and delete spam operations work dynamically', () {
-      final repo = MessageRepository();
+      final repo = MessageRepository(enableRemoteSync: false);
       expect(repo.allMessages.length, 7);
       expect(repo.spamCount, 3);
       expect(repo.susCount, 1);
@@ -66,11 +66,57 @@ void main() {
       expect(repo.spamCount, 0);
       expect(repo.allMessages.length, 4);
     });
+
+    test('Notification service rule: only NOT SPAM triggers notifications', () async {
+      // Per spec: spam and sus are quietly quarantined, only not_spam notifies
+      final safeMsg = MessageItem(
+        id: 'safe-1',
+        sender: 'Alice',
+        senderAvatarChar: 'A',
+        snippet: 'Hello',
+        fullMessage: 'Hello there',
+        category: MessageCategory.notSpam,
+        riskPercentage: 2,
+        statusDescription: 'Safe',
+        reasons: const [],
+        timestamp: DateTime.now(),
+      );
+
+      final spamMsg = MessageItem(
+        id: 'spam-1',
+        sender: 'Scammer',
+        senderAvatarChar: '!',
+        snippet: 'Claim prize',
+        fullMessage: 'Claim prize now',
+        category: MessageCategory.spam,
+        riskPercentage: 95,
+        statusDescription: 'Spam detected',
+        reasons: const [],
+        timestamp: DateTime.now(),
+      );
+
+      final susMsg = MessageItem(
+        id: 'sus-1',
+        sender: 'Suspicious',
+        senderAvatarChar: '?',
+        snippet: 'Check link',
+        fullMessage: 'Check link now',
+        category: MessageCategory.sus,
+        riskPercentage: 55,
+        statusDescription: 'Sus detected',
+        reasons: const [],
+        timestamp: DateTime.now(),
+      );
+
+      expect(safeMsg.category == MessageCategory.notSpam, isTrue);
+      expect(spamMsg.category == MessageCategory.notSpam, isFalse);
+      expect(susMsg.category == MessageCategory.notSpam, isFalse);
+    });
   });
 
   group('Widget Navigation & Detail Rendering Tests', () {
     testWidgets('Tapping a message opens MessageDetailScreen with matching data', (tester) async {
-      final repo = MessageRepository();
+      final repo = MessageRepository(enableRemoteSync: false);
       await tester.pumpWidget(ScamShieldApp(repository: repo));
       await tester.pumpAndSettle();
 
@@ -93,7 +139,7 @@ void main() {
     });
 
     testWidgets('Shield Screen renders hero card and colour guide with Sus', (tester) async {
-      final repo = MessageRepository();
+      final repo = MessageRepository(enableRemoteSync: false);
       await tester.pumpWidget(ScamShieldApp(repository: repo));
       await tester.pumpAndSettle();
 

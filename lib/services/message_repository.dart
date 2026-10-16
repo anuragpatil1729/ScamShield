@@ -2,13 +2,24 @@ import 'package:flutter/foundation.dart';
 import '../models/message_model.dart';
 import '../models/shield_stats_model.dart';
 import 'classifier_service.dart';
+import 'notification_service.dart';
+import 'supabase_service.dart';
 
 class MessageRepository extends ChangeNotifier {
   SpamClassifierService _classifierService;
+  final SupabaseService _supabaseService = SupabaseService();
+  final NotificationService _notificationService = NotificationService();
 
-  MessageRepository({SpamClassifierService? classifierService})
-      : _classifierService = classifierService ?? HeuristicMockClassifierService() {
+  final bool enableRemoteSync;
+
+  MessageRepository({
+    SpamClassifierService? classifierService,
+    this.enableRemoteSync = true,
+  }) : _classifierService = classifierService ?? HeuristicMockClassifierService() {
     _loadInitialDataset();
+    if (enableRemoteSync) {
+      _initSupabaseAndRealtime();
+    }
   }
 
   void updateClassifierService(SpamClassifierService service) {
@@ -17,14 +28,18 @@ class MessageRepository extends ChangeNotifier {
   }
 
   SpamClassifierService get classifierService => _classifierService;
+  SupabaseService get supabaseService => _supabaseService;
+  NotificationService get notificationService => _notificationService;
 
   List<MessageItem> _messages = [];
   String _searchQuery = '';
   MessageCategory? _selectedFilter; // null means 'All'
+  bool _isSyncing = false;
 
   List<MessageItem> get allMessages => List.unmodifiable(_messages);
   String get searchQuery => _searchQuery;
   MessageCategory? get selectedFilter => _selectedFilter;
+  bool get isSyncing => _isSyncing;
 
   // Dynamic counts
   int get totalCount => _messages.length;
@@ -58,9 +73,103 @@ class MessageRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _initSupabaseAndRealtime() async {
+    try {
+      _isSyncing = true;
+      notifyListeners();
+
+      await _supabaseService.initialize();
+      await _notificationService.initialize();
+
+      // Fetch remote messages from Supabase
+      final remoteRows = await _supabaseService.fetchMessages();
+      if (remoteRows.isNotEmpty) {
+        final remoteItems = remoteRows.map((r) => MessageItem.fromMap(r)).toList();
+        // Merge with initial data without duplicates
+        for (final item in remoteItems) {
+          final index = _messages.indexWhere((m) => m.id == item.id);
+          if (index == -1) {
+            _messages.insert(0, item);
+          } else {
+            _messages[index] = item;
+          }
+        }
+      }
+
+      // Realtime subscription: listen for new incoming messages
+      _supabaseService.subscribeToIncomingMessages(
+        onInsert: (row) async {
+          final item = MessageItem.fromMap(row);
+          final existingIdx = _messages.indexWhere((m) => m.id == item.id);
+          if (existingIdx == -1) {
+            _messages.insert(0, item);
+            notifyListeners();
+
+            // PREDICTION / NOTIFICATION HOOK:
+            // "if it is not spam then only the notification should be shown or else it is marked as spam"
+            await _notificationService.handleIncomingMessageNotification(item);
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('Supabase initialization/sync note: $e');
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Send message through Supabase database
+  Future<MessageItem> sendMessageViaSupabase({
+    required String sender,
+    required String messageText,
+    String subject = '',
+    MessageCategory category = MessageCategory.notSpam,
+    int riskPercentage = 0,
+    String statusDescription = '',
+    List<String> reasons = const [],
+    List<String> maskedLinks = const [],
+  }) async {
+    try {
+      final res = await _supabaseService.sendMessage(
+        sender: sender,
+        body: messageText,
+        subject: subject,
+        category: category,
+        riskPercentage: riskPercentage,
+        statusDescription: statusDescription,
+        reasons: reasons,
+        maskedLinks: maskedLinks,
+      );
+
+      final item = MessageItem.fromMap(res);
+      final index = _messages.indexWhere((m) => m.id == item.id);
+      if (index == -1) {
+        _messages.insert(0, item);
+        notifyListeners();
+      }
+
+      // Check notification if it qualifies as safe
+      await _notificationService.handleIncomingMessageNotification(item);
+      return item;
+    } catch (e) {
+      debugPrint('Error sending message via Supabase: $e');
+      // Local fallback
+      return processAndAddMessage(
+        sender: sender,
+        messageText: messageText,
+      );
+    }
+  }
+
   void deleteSpamMessages() {
     _messages.removeWhere((m) => m.category == MessageCategory.spam);
     notifyListeners();
+    if (enableRemoteSync) {
+      _supabaseService.deleteAllSpamMessages().catchError((e) {
+        debugPrint('Error deleting spam from Supabase: $e');
+      });
+    }
   }
 
   void blockAndReport(String id) {
@@ -68,6 +177,11 @@ class MessageRepository extends ChangeNotifier {
     if (index != -1) {
       _messages[index] = _messages[index].copyWith(isBlocked: true);
       notifyListeners();
+      if (enableRemoteSync) {
+        _supabaseService.updateCategory(id, MessageCategory.spam, 96).catchError((e) {
+          debugPrint('Error updating in Supabase: $e');
+        });
+      }
     }
   }
 
@@ -82,6 +196,11 @@ class MessageRepository extends ChangeNotifier {
         reasons: ['User approved sender', 'Manual safety override'],
       );
       notifyListeners();
+      if (enableRemoteSync) {
+        _supabaseService.updateCategory(id, MessageCategory.notSpam, 4).catchError((e) {
+          debugPrint('Error updating in Supabase: $e');
+        });
+      }
     }
   }
 
@@ -96,6 +215,11 @@ class MessageRepository extends ChangeNotifier {
         reasons: ['User flagged as unwanted message', 'Reported to community filter'],
       );
       notifyListeners();
+      if (enableRemoteSync) {
+        _supabaseService.updateCategory(id, MessageCategory.spam, 92).catchError((e) {
+          debugPrint('Error updating in Supabase: $e');
+        });
+      }
     }
   }
 
@@ -132,6 +256,12 @@ class MessageRepository extends ChangeNotifier {
 
     _messages.insert(0, newItem);
     notifyListeners();
+
+    // Trigger notification if NOT SPAM
+    if (enableRemoteSync) {
+      await _notificationService.handleIncomingMessageNotification(newItem);
+    }
+
     return newItem;
   }
 

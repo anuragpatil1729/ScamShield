@@ -92,4 +92,63 @@ class MessageItem {
       isBlocked: isBlocked ?? this.isBlocked,
     );
   }
+
+  factory MessageItem.fromMap(Map<String, dynamic> map) {
+    final catStr = (map['category'] as String?)?.toLowerCase() ?? 'not_spam';
+    final MessageCategory cat;
+    if (catStr == 'spam') {
+      cat = MessageCategory.spam;
+    } else if (catStr == 'sus') {
+      cat = MessageCategory.sus;
+    } else {
+      cat = MessageCategory.notSpam;
+    }
+
+    final senderStr = (map['sender'] as String?) ?? 'Unknown';
+    final avatarChar = cat == MessageCategory.spam
+        ? '!'
+        : (cat == MessageCategory.sus
+            ? '?'
+            : (senderStr.trim().isNotEmpty ? senderStr.trim()[0].toUpperCase() : '?'));
+
+    List<String> parseList(dynamic val) {
+      if (val is List) {
+        return val.map((e) => e.toString()).toList();
+      }
+      return [];
+    }
+
+    DateTime parsedDate;
+    if (map['created_at'] != null) {
+      parsedDate = DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    final bodyText = map['body']?.toString() ?? (map['fullMessage']?.toString() ?? '');
+    final snippetText = map['snippet']?.toString() ??
+        (bodyText.length > 55 ? '${bodyText.substring(0, 52)}...' : bodyText);
+
+    return MessageItem(
+      id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      sender: senderStr,
+      senderAvatarChar: avatarChar,
+      snippet: snippetText,
+      fullMessage: bodyText,
+      category: cat,
+      riskPercentage: (map['risk_percentage'] as num?)?.toInt() ?? 0,
+      statusDescription: map['status_description']?.toString() ??
+          (cat == MessageCategory.spam
+              ? 'Blocked before opening. Do not tap links or share OTPs.'
+              : (cat == MessageCategory.sus
+                  ? 'Suspicious flags detected. Proceed with caution.'
+                  : 'Looks like a normal message. Safe to open.')),
+      reasons: parseList(map['reasons']),
+      maskedLinks: parseList(map['masked_links']),
+      timestamp: parsedDate,
+      isVerifiedSender: cat == MessageCategory.notSpam,
+      isSavedContact: cat == MessageCategory.notSpam,
+      isBlocked: map['is_blocked'] as bool? ?? false,
+    );
+  }
 }
