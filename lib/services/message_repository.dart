@@ -120,6 +120,7 @@ class MessageRepository extends ChangeNotifier {
   Future<MessageItem> sendOutgoingMessage({
     required String chatId,
     required String text,
+    String? recipientName,
   }) async {
     final newItem = MessageItem(
       id: 'out_${DateTime.now().millisecondsSinceEpoch}',
@@ -137,7 +138,7 @@ class MessageRepository extends ChangeNotifier {
       isRead: true,
     );
 
-    _appendMessageToChat(chatId, newItem);
+    _appendMessageToChat(chatId, newItem, contactName: recipientName);
     notifyListeners();
     return newItem;
   }
@@ -201,19 +202,21 @@ class MessageRepository extends ChangeNotifier {
     return newItem;
   }
 
-  void _appendMessageToChat(String chatId, MessageItem message) {
+  void _appendMessageToChat(String chatId, MessageItem message, {String? contactName}) {
     final index = _conversations.indexWhere((c) => c.id == chatId);
     if (index != -1) {
       final conv = _conversations[index];
       final updatedMessages = List<MessageItem>.from(conv.messages)..add(message);
       _conversations[index] = conv.copyWith(messages: updatedMessages);
     } else {
+      final name = contactName ?? (message.isOutgoing ? chatId : message.sender);
+      final char = name.isNotEmpty ? name[0].toUpperCase() : '?';
       // Create new conversation
       final newConv = ChatConversation(
         id: chatId,
-        name: message.sender,
-        phoneOrHandle: message.sender,
-        avatarChar: message.senderAvatarChar,
+        name: name,
+        phoneOrHandle: name,
+        avatarChar: char,
         messages: [message],
       );
       _conversations.insert(0, newConv);

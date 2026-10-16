@@ -66,174 +66,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     _scrollToBottom();
   }
 
-  void _showSimulateIncomingDialog(ChatConversation conversation) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.borderSubtle,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryDark.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.bolt_rounded, color: AppColors.primaryDark),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Simulate Incoming from ${conversation.name}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Test local AI classification & safe-only notification pre-filtering',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
 
-              // Safe preset
-              _buildSimulateOption(
-                title: '⚪ Send Safe / Normal Message',
-                subtitle: 'White bubble • 0% risk • Triggers device notification!',
-                color: const Color(0xFFE8F5E9),
-                borderColor: const Color(0xFF81C784),
-                textColor: const Color(0xFF2E7D32),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await widget.repository.receiveIncomingMessage(
-                    chatId: conversation.id,
-                    sender: conversation.name,
-                    text: 'Hey! The document looks good. Let us finalize the plan over lunch.',
-                  );
-                  _scrollToBottom();
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Sus preset
-              _buildSimulateOption(
-                title: '🟡 Send Suspicious (SUS) Message',
-                subtitle: 'Yellow bubble • 48% risk • SILENT quarantine (No notification)',
-                color: const Color(0xFFFFFBEA),
-                borderColor: const Color(0xFFFFD54F),
-                textColor: const Color(0xFFF57F17),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await widget.repository.receiveIncomingMessage(
-                    chatId: conversation.id,
-                    sender: conversation.name,
-                    text: 'Claim your 1,000 USDT bonus here: t.me/free_crypto_airdrop before timer expires!',
-                  );
-                  _scrollToBottom();
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Spam preset
-              _buildSimulateOption(
-                title: '🔴 Send Phishing (SPAM) Message',
-                subtitle: 'Red bubble • 98% risk • SILENT quarantine (No notification)',
-                color: const Color(0xFFFFEEEE),
-                borderColor: const Color(0xFFEF9A9A),
-                textColor: const Color(0xFFC62828),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await widget.repository.receiveIncomingMessage(
-                    chatId: conversation.id,
-                    sender: conversation.name,
-                    text: 'FINAL WARNING: Your Bank account will be SUSPENDED within 2 hours. Update KYC at http://bit.ly/bank-kyc-verify immediately!',
-                  );
-                  _scrollToBottom();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSimulateOption({
-    required String title,
-    required String subtitle,
-    required Color color,
-    required Color borderColor,
-    required Color textColor,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: textColor.withValues(alpha: 0.85),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -398,9 +231,14 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       ),
       actions: [
         IconButton(
-          tooltip: 'Simulate Incoming Message',
-          icon: const Icon(Icons.bolt_rounded, color: Colors.white),
-          onPressed: () => _showSimulateIncomingDialog(conversation),
+          tooltip: 'Call',
+          icon: const Icon(Icons.call_outlined, color: Colors.white),
+          onPressed: () {},
+        ),
+        IconButton(
+          tooltip: 'More options',
+          icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+          onPressed: () {},
         ),
       ],
     );
@@ -696,9 +534,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.bolt_rounded, color: AppColors.primaryDark),
-              tooltip: 'Simulate Incoming Message',
-              onPressed: () => _showSimulateIncomingDialog(conversation),
+              icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.textSecondary),
+              tooltip: 'Attach',
+              onPressed: () {},
             ),
             Expanded(
               child: Container(

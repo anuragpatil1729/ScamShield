@@ -106,16 +106,13 @@ class _InboxScreenState extends State<InboxScreen> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
+          floatingActionButton: FloatingActionButton(
             onPressed: () => ComposeMessageSheet.show(context, widget.repository),
             backgroundColor: AppColors.primaryDark,
             foregroundColor: Colors.white,
             elevation: 3,
-            icon: const Icon(Icons.bolt_rounded, size: 20),
-            label: const Text(
-              'Simulate Incoming',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+            tooltip: 'New Message',
+            child: const Icon(Icons.edit_note_rounded, size: 26),
           ),
         );
       },

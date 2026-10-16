@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
 import '../services/message_repository.dart';
 import '../theme/app_colors.dart';
+import 'chat_conversation_screen.dart';
 
 class ComposeMessageSheet extends StatefulWidget {
   final MessageRepository repository;
@@ -25,28 +25,35 @@ class ComposeMessageSheet extends StatefulWidget {
 }
 
 class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
-  final _senderController = TextEditingController(text: 'Rohan <rohan@gmail.com>');
-  final _bodyController = TextEditingController(
-      text: 'Hey! Are we still syncing up for the review today? Let me know!');
-
-  MessageCategory _selectedCategory = MessageCategory.notSpam;
+  final _recipientController = TextEditingController(text: 'Rohan Sharma');
+  final _messageController = TextEditingController();
   bool _isSending = false;
 
   @override
   void dispose() {
-    _senderController.dispose();
-    _bodyController.dispose();
+    _recipientController.dispose();
+    _messageController.dispose();
     super.dispose();
   }
 
   Future<void> _sendMessage() async {
-    final sender = _senderController.text.trim();
-    final body = _bodyController.text.trim();
+    final recipient = _recipientController.text.trim();
+    final message = _messageController.text.trim();
 
-    if (sender.isEmpty || body.isEmpty) {
+    if (recipient.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter both sender and message body'),
+          content: Text('Please enter a recipient name or phone number'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a message to send'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -56,27 +63,25 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
     setState(() => _isSending = true);
 
     try {
-      final chatId = sender.toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+      final chatId = recipient.toLowerCase().replaceAll(RegExp(r'\s+'), '_');
 
-      // Receive and classify locally with notification pre-filtering
-      await widget.repository.receiveIncomingMessage(
+      // Send outgoing message locally
+      await widget.repository.sendOutgoingMessage(
         chatId: chatId,
-        sender: sender,
-        text: body,
-        overrideCategory: _selectedCategory,
+        recipientName: recipient,
+        text: message,
       );
 
       if (mounted) {
         Navigator.of(context).pop();
-        final notifInfo = _selectedCategory == MessageCategory.notSpam
-            ? '🔔 Notification triggered (Safe message)!'
-            : '🛡️ Quarantined silently (Notification suppressed)!';
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Message delivered locally! $notifInfo'),
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
+        // Immediately open the conversation view
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (ctx) => ChatConversationScreen(
+              chatId: chatId,
+              repository: widget.repository,
+            ),
           ),
         );
       }
@@ -92,14 +97,6 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
         );
       }
     }
-  }
-
-  void _applyScenario(String sender, String body, MessageCategory category) {
-    setState(() {
-      _senderController.text = sender;
-      _bodyController.text = body;
-      _selectedCategory = category;
-    });
   }
 
   @override
@@ -132,7 +129,7 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Sheet Title
+            // Header
             Row(
               children: [
                 Container(
@@ -141,7 +138,7 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
                     color: AppColors.primaryDark.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.send_rounded, color: AppColors.primaryDark, size: 22),
+                  child: const Icon(Icons.edit_note_rounded, color: AppColors.primaryDark, size: 24),
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
@@ -149,7 +146,7 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Simulate Incoming Chat',
+                        'New Message',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
@@ -157,23 +154,27 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
                         ),
                       ),
                       Text(
-                        'Local ML Classifier & Safe-Only Notification Filter',
+                        'Compose and send local messages securely',
                         style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
               ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
 
-            // Quick Scenario Presets
+            // Quick Contact Suggestions
             const Text(
-              'Quick Scenarios:',
+              'Select Contact:',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -181,144 +182,95 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildScenarioChip(
-                    label: '🟢 Safe Message',
-                    color: const Color(0xFFE8F5E9),
-                    textColor: const Color(0xFF2E7D32),
-                    onTap: () => _applyScenario(
-                      'Rohan Sharma',
-                      'Hey! Are we still syncing up for the review today? Let me know!',
-                      MessageCategory.notSpam,
-                    ),
-                  ),
+                  _buildContactChip('Rohan Sharma'),
                   const SizedBox(width: 8),
-                  _buildScenarioChip(
-                    label: '🟡 Sus Promo',
-                    color: const Color(0xFFFFFBEA),
-                    textColor: const Color(0xFFF57F17),
-                    onTap: () => _applyScenario(
-                      'Unknown (+1 555-0192)',
-                      '🎉 Claim 0.5 BTC airdrop! Join t.me/free_crypto_airdrop before timer expires.',
-                      MessageCategory.sus,
-                    ),
-                  ),
+                  _buildContactChip('Mom'),
                   const SizedBox(width: 8),
-                  _buildScenarioChip(
-                    label: '🔴 Urgent Spam',
-                    color: const Color(0xFFFFEEEE),
-                    textColor: const Color(0xFFC62828),
-                    onTap: () => _applyScenario(
-                      'VK-TAXDEPT',
-                      'URGENT: Income Tax Refund of Rs. 42,850 pending. KYC expired! Tap http://bit.ly/incometax-verify-kyc immediately!',
-                      MessageCategory.spam,
-                    ),
-                  ),
+                  _buildContactChip('HDFC Bank'),
+                  const SizedBox(width: 8),
+                  _buildContactChip('+1 555-0192'),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
 
-            // Category Selector
+            // Recipient Field
             const Text(
-              'Classification Category:',
+              'To:',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildCategoryRadio(
-                  category: MessageCategory.notSpam,
-                  label: 'White (Safe)',
-                  color: const Color(0xFF2E7D32),
-                  bgColor: const Color(0xFFE8F5E9),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _recipientController,
+              decoration: InputDecoration(
+                hintText: 'Enter contact name or phone number',
+                prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.textSecondary),
+                filled: true,
+                fillColor: AppColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.borderSubtle),
                 ),
-                const SizedBox(width: 8),
-                _buildCategoryRadio(
-                  category: MessageCategory.sus,
-                  label: 'Yellow (Sus)',
-                  color: const Color(0xFFF57F17),
-                  bgColor: const Color(0xFFFFFBEA),
-                ),
-                const SizedBox(width: 8),
-                _buildCategoryRadio(
-                  category: MessageCategory.spam,
-                  label: 'Red (Spam)',
-                  color: const Color(0xFFC62828),
-                  bgColor: const Color(0xFFFFEEEE),
-                ),
-              ],
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
             ),
             const SizedBox(height: 16),
 
-            // Sender
-            TextFormField(
-              controller: _senderController,
-              decoration: InputDecoration(
-                labelText: 'Contact / Sender',
-                hintText: 'e.g. Rohan Sharma or +91 98200 12345',
-                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
+            // Message Body Field
+            const Text(
+              'Message:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 12),
-
-            // Message Body
-            TextFormField(
-              controller: _bodyController,
-              maxLines: 3,
+            const SizedBox(height: 6),
+            TextField(
+              controller: _messageController,
+              maxLines: 4,
+              minLines: 2,
+              textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
-                labelText: 'Message Body',
-                hintText: 'Enter text to classify and filter...',
-                alignLabelWithHint: true,
+                hintText: 'Type your message...',
                 filled: true,
                 fillColor: AppColors.background,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: AppColors.borderSubtle),
                 ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
             ),
             const SizedBox(height: 20),
 
-            // Submit Button
+            // Send Button
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              height: 50,
+              child: ElevatedButton.icon(
                 onPressed: _isSending ? null : _sendMessage,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.send_rounded, size: 20),
+                label: const Text(
+                  'Send Message',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryDark,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
-                child: _isSending
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Deliver Message Locally',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
               ),
             ),
           ],
@@ -327,63 +279,30 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
     );
   }
 
-  Widget _buildScenarioChip({
-    required String label,
-    required Color color,
-    required Color textColor,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildContactChip(String name) {
+    final isSelected = _recipientController.text == name;
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        setState(() {
+          _recipientController.text = name;
+        });
+      },
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: color,
+          color: isSelected ? AppColors.primaryDark : AppColors.background,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: textColor.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryDark : AppColors.borderSubtle,
+          ),
         ),
         child: Text(
-          label,
+          name,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryRadio({
-    required MessageCategory category,
-    required String label,
-    required Color color,
-    required Color bgColor,
-  }) {
-    final isSelected = _selectedCategory == category;
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _selectedCategory = category),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? bgColor : AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? color : AppColors.borderSubtle,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? color : AppColors.textSecondary,
-            ),
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : AppColors.textPrimary,
           ),
         ),
       ),
