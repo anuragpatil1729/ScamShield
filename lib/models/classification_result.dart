@@ -8,6 +8,10 @@ class ClassificationResult {
   final List<String> reasons;
   final List<String> flaggedKeywords;
   final List<String> maskedLinks;
+  final double? ruleScore;
+  final String? layer1Route;
+  final List<String>? layer1Hits;
+  final Map<String, double>? features;
 
   const ClassificationResult({
     required this.category,
@@ -17,6 +21,10 @@ class ClassificationResult {
     required this.reasons,
     this.flaggedKeywords = const [],
     this.maskedLinks = const [],
+    this.ruleScore,
+    this.layer1Route,
+    this.layer1Hits,
+    this.features,
   });
 
   factory ClassificationResult.fromScore({

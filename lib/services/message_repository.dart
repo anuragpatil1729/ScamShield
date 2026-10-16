@@ -152,9 +152,13 @@ class MessageRepository extends ChangeNotifier {
     required String text,
     MessageCategory? overrideCategory,
   }) async {
+    final knownContacts = _conversations.map((c) => c.name).toSet();
     final classification = await _classifierService.classify(
       text,
       sender: sender,
+      metadata: {
+        'known_contacts': knownContacts,
+      },
     );
 
     final finalCategory = overrideCategory ?? classification.category;

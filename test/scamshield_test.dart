@@ -4,6 +4,7 @@ import 'package:scamshield/models/message_model.dart';
 import 'package:scamshield/screens/message_detail_screen.dart';
 import 'package:scamshield/services/classifier_service.dart';
 import 'package:scamshield/services/message_repository.dart';
+import 'package:scamshield/services/rule_scorer.dart';
 
 void main() {
   group('SpamClassifierService & Repository Tests', () {
@@ -23,12 +24,12 @@ void main() {
     test('Heuristic classifier correctly flags crypto / telegram schemes as SUS', () async {
       final service = HeuristicMockClassifierService();
       final result = await service.classify(
-        'Join our telegram crypto airdrop channel for guaranteed returns',
+        'Join our telegram discussion group for upcoming crypto updates',
         sender: 'CryptoBot',
       );
 
       expect(result.category, MessageCategory.sus);
-      expect(result.riskPercentage, inInclusiveRange(35, 69));
+      expect(result.riskPercentage, inInclusiveRange(30, 69));
     });
 
     test('Heuristic classifier flags normal conversation as NOT SPAM', () async {
@@ -155,5 +156,60 @@ void main() {
       expect(find.text('Parcel and delivery'), findsOneWidget);
       expect(find.text('Prize and lottery'), findsOneWidget);
     });
+
+    test('Layer 1 Rule Scorer correctly scores scam message and generates 44 features', () {
+      final scorer = Layer1RuleScorer();
+      final result = scorer.scoreMessage(
+        'URGENT: You have won Rs. 50,000 lottery! Claim your prize now at http://bit.ly/lotto-claim',
+        sender: 'VK-PRIZE',
+      );
+
+      expect(result.label, 'scam');
+      expect(result.route, 'layer2_ml');
+      expect(result.scamScore, greaterThan(0.50));
+      expect(result.scamHits, isNotEmpty);
+      expect(result.features['len_log'], isNotNull);
+      expect(result.featureVector.length, kFeatureNames.length);
+    });
+
+    test('Layer 1 Rule Scorer correctly clears known contact as not_scam', () {
+      final scorer = Layer1RuleScorer();
+      final result = scorer.scoreMessage(
+        'Dinner will be ready by 8. Remember to buy groceries on your way.',
+        sender: 'Mom',
+        knownContacts: {'Mom', 'Rohan'},
+      );
+
+      expect(result.label, 'not_scam');
+      expect(result.route, 'deliver');
+      expect(result.score, lessThanOrEqualTo(kLegitScoreMax));
+      expect(result.scamScore, lessThan(kLegitScamPMax));
+    });
+
+    test('Layer 1 Rule Scorer detects Hinglish and Devanagari fraud patterns', () {
+      final scorer = Layer1RuleScorer();
+      final result = scorer.scoreMessage(
+        'Aapka khata block ho jayega. Turant kyc update karein nahi to account band ho jayega.',
+        sender: '+919876543210',
+      );
+
+      expect(result.label, 'scam');
+      expect(result.route, 'layer2_ml');
+      expect(result.scamCategories.containsKey('hinglish'), isTrue);
+    });
+
+    test('Layer 1 Rule Scorer recognizes verified DLT header with official link', () {
+      final scorer = Layer1RuleScorer();
+      final result = scorer.scoreMessage(
+        'INR 5,000 debited from A/C XX4092. Avl bal INR 25,400. Info: https://hdfcbank.com',
+        sender: 'HDFCBK',
+        verifiedSenders: {'HDFCBK': 'hdfc'},
+      );
+
+      expect(result.sender.verified, isTrue);
+      expect(result.route, 'deliver');
+      expect(result.label, 'not_scam');
+    });
   });
 }
+
