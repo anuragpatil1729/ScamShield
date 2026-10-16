@@ -111,9 +111,33 @@ class MessageRepository extends ChangeNotifier {
     try {
       await _supabaseService.initialize();
       await _notificationService.initialize();
+      _setupSupabaseRealtime();
     } catch (e) {
       debugPrint('Initialization note: $e');
     }
+  }
+
+  void _setupSupabaseRealtime() {
+    _supabaseService.subscribeToMessages((record) {
+      final sender = record['sender'] as String? ?? '';
+      final body = record['body'] as String? ?? '';
+      final currentEmail = _supabaseService.currentUser?.email ?? '';
+
+      // Skip messages sent from this exact account (already visible as outgoing)
+      if (currentEmail.isNotEmpty && sender.toLowerCase() == currentEmail.toLowerCase()) {
+        return;
+      }
+
+      if (body.isEmpty) return;
+
+      // New message from another user/device:
+      // Run ON-DEVICE Layer 1 rule scorer + pre-open notification gatekeeper!
+      receiveIncomingMessage(
+        chatId: sender,
+        sender: sender,
+        text: body,
+      );
+    });
   }
 
   /// Send an outgoing message in a WhatsApp chat conversation
@@ -140,6 +164,15 @@ class MessageRepository extends ChangeNotifier {
 
     _appendMessageToChat(chatId, newItem, contactName: recipientName);
     notifyListeners();
+
+    // Broadcast through Supabase messages table so the second device receives it in Realtime
+    final conv = getConversation(chatId);
+    final recipient = conv?.phoneOrHandle ?? chatId;
+    _supabaseService.sendChatMessage(
+      body: text,
+      recipient: recipient,
+    );
+
     return newItem;
   }
 
