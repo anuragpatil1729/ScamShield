@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../services/device_message_service.dart';
 import '../services/message_repository.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
@@ -25,6 +26,20 @@ class InboxScreen extends StatefulWidget {
 class _InboxScreenState extends State<InboxScreen> {
   bool _isSearchOpen = false;
   final TextEditingController _searchController = TextEditingController();
+  bool _hasNotifAccess = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNotificationAccess();
+  }
+
+  Future<void> _checkNotificationAccess() async {
+    final access = await DeviceMessageService().hasNotificationAccess();
+    if (mounted) {
+      setState(() => _hasNotifAccess = access);
+    }
+  }
 
   @override
   void dispose() {
@@ -63,6 +78,12 @@ class _InboxScreenState extends State<InboxScreen> {
 
                 // Phone Identity Bar
                 _buildPhoneIdentityBar(),
+
+                // Device SMS Sync & Protection Bar
+                _buildDeviceProtectionBar(),
+
+                // Notification Access prompt if not enabled
+                if (!_hasNotifAccess) _buildNotificationAccessBanner(),
 
                 // Search Bar (if opened)
                 if (_isSearchOpen) _buildSearchBar(),
@@ -285,6 +306,127 @@ class _InboxScreenState extends State<InboxScreen> {
                 size: 11,
                 color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceProtectionBar() {
+    final isSyncing = widget.repository.isSyncingDeviceSms;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: AppColors.primaryDark.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.mark_chat_unread_rounded, size: 15, color: AppColors.primaryDark),
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Default Messages Protection',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  Text(
+                    'Scanning SMS & silencing live spam notifications',
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            InkWell(
+              onTap: isSyncing
+                  ? null
+                  : () async {
+                      final count = await widget.repository.syncDeviceSms();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(count > 0
+                                ? 'Protected & synced $count messages from default app'
+                                : 'SMS inbox is already up to date'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryDark,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSyncing)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    else
+                      const Icon(Icons.sync_rounded, size: 13, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      isSyncing ? 'Syncing...' : 'Sync SMS',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationAccessBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      child: InkWell(
+        onTap: () async {
+          await DeviceMessageService().requestNotificationAccess();
+          Future.delayed(const Duration(seconds: 2), _checkNotificationAccess);
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDE7F6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFD1C4E9)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.notifications_active_rounded, size: 15, color: Color(0xFF5E35B1)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tap to enable Notification Listener (Silences spam notifications in real-time)',
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF5E35B1)),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFF5E35B1)),
             ],
           ),
         ),

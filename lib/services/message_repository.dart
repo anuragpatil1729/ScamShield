@@ -3,6 +3,7 @@ import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../models/shield_stats_model.dart';
 import 'classifier_service.dart';
+import 'device_message_service.dart';
 import 'notification_service.dart';
 import 'supabase_service.dart';
 
@@ -10,6 +11,7 @@ class MessageRepository extends ChangeNotifier {
   SpamClassifierService _classifierService;
   final SupabaseService _supabaseService = SupabaseService();
   final NotificationService _notificationService = NotificationService();
+  final DeviceMessageService _deviceMessageService = DeviceMessageService();
 
   final bool enableRemoteSync;
 
@@ -107,14 +109,137 @@ class MessageRepository extends ChangeNotifier {
     }
   }
 
+  bool _isSyncingDeviceSms = false;
+  bool get isSyncingDeviceSms => _isSyncingDeviceSms;
+
   Future<void> _initServices() async {
     try {
       await _supabaseService.initialize();
       await _notificationService.initialize();
       _setupSupabaseRealtime();
+      _setupDeviceMessageListener();
+
+      // Automatically sync SMS if permission was already granted previously
+      final hasPerm = await _deviceMessageService.hasSmsPermission();
+      if (hasPerm) {
+        syncDeviceSms();
+      }
     } catch (e) {
       debugPrint('Initialization note: $e');
     }
+  }
+
+  /// Listen to real-time incoming SMS broadcasts and intercepted messaging app notifications
+  void _setupDeviceMessageListener() {
+    _deviceMessageService.incomingMessages.listen((payload) {
+      final sender = payload['sender'] as String? ?? 'Unknown';
+      final body = payload['body'] as String? ?? '';
+      final notificationKey = payload['notificationKey'] as String? ?? '';
+
+      if (body.trim().isEmpty) return;
+
+      debugPrint('Received device message from $sender: $body (key: $notificationKey)');
+      receiveIncomingMessage(
+        chatId: sender,
+        sender: sender,
+        text: body,
+        notificationKey: notificationKey,
+      );
+    }, onError: (err) {
+      debugPrint('Device incoming stream error: $err');
+    });
+  }
+
+  /// Sync messages from the device's default messaging app inbox
+  Future<int> syncDeviceSms({int limit = 50}) async {
+    if (_isSyncingDeviceSms) return 0;
+    _isSyncingDeviceSms = true;
+    notifyListeners();
+
+    int addedCount = 0;
+    try {
+      final rawList = await _deviceMessageService.readDeviceSmsInbox(limit: limit);
+      final knownContacts = _conversations.map((c) => c.name).toSet();
+
+      for (final raw in rawList) {
+        final address = raw['address'] as String? ?? 'Unknown';
+        final body = raw['body'] as String? ?? '';
+        final isOutgoing = raw['isOutgoing'] as bool? ?? false;
+        final isRead = raw['isRead'] as bool? ?? true;
+        final timestampMs = raw['date'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+        final timestamp = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+
+        if (body.trim().isEmpty) continue;
+
+        // Deduplicate against existing messages in thread
+        final existingConv = getConversation(address);
+        final alreadyExists = existingConv?.messages.any((m) =>
+            m.fullMessage == body &&
+            (m.timestamp.difference(timestamp).inSeconds.abs() < 5)) ?? false;
+
+        if (alreadyExists) continue;
+
+        if (isOutgoing) {
+          final outItem = MessageItem(
+            id: 'dev_out_${raw['id'] ?? timestampMs}',
+            sender: 'You',
+            senderAvatarChar: 'Y',
+            snippet: body.length > 55 ? '${body.substring(0, 52)}...' : body,
+            fullMessage: body,
+            category: MessageCategory.notSpam,
+            riskPercentage: 0,
+            statusDescription: 'Outgoing message sent by you.',
+            reasons: const ['Outgoing user message'],
+            timestamp: timestamp,
+            isOutgoing: true,
+            chatId: address,
+            isRead: true,
+          );
+          _appendMessageToChat(address, outItem);
+          addedCount++;
+        } else {
+          final classification = await _classifierService.classify(
+            body,
+            sender: address,
+            metadata: {'known_contacts': knownContacts},
+          );
+
+          final cat = classification.category;
+          final avatarChar = address.isNotEmpty
+              ? (cat == MessageCategory.spam
+                  ? '!'
+                  : (cat == MessageCategory.sus ? '?' : address.trim()[0].toUpperCase()))
+              : '?';
+
+          final incItem = MessageItem(
+            id: 'dev_inc_${raw['id'] ?? timestampMs}',
+            sender: address,
+            senderAvatarChar: avatarChar,
+            snippet: body.length > 55 ? '${body.substring(0, 52)}...' : body,
+            fullMessage: body,
+            category: cat,
+            riskPercentage: classification.riskPercentage,
+            statusDescription: classification.statusDescription,
+            reasons: classification.reasons,
+            maskedLinks: classification.maskedLinks,
+            timestamp: timestamp,
+            isOutgoing: false,
+            chatId: address,
+            isRead: isRead,
+            isVerifiedSender: cat == MessageCategory.notSpam,
+          );
+          _appendMessageToChat(address, incItem);
+          addedCount++;
+        }
+      }
+      debugPrint('Synced $addedCount messages from device default messaging app');
+    } catch (e) {
+      debugPrint('Error syncing device SMS: $e');
+    } finally {
+      _isSyncingDeviceSms = false;
+      notifyListeners();
+    }
+    return addedCount;
   }
 
   void _setupSupabaseRealtime() {
@@ -181,11 +306,13 @@ class MessageRepository extends ChangeNotifier {
   /// Receive an incoming message locally in a chat conversation
   /// Classifies the message and enforces PRE-OPEN NOTIFICATION RULE:
   /// Only NOT SPAM messages trigger device notifications!
+  /// For Spam/Sus intercepted notifications, the system notification is automatically dismissed!
   Future<MessageItem> receiveIncomingMessage({
     required String chatId,
     required String sender,
     required String text,
     MessageCategory? overrideCategory,
+    String? notificationKey,
   }) async {
     final knownContacts = _conversations.map((c) => c.name).toSet();
     final classification = await _classifierService.classify(
@@ -232,10 +359,15 @@ class MessageRepository extends ChangeNotifier {
 
     // PRE-OPEN NOTIFICATION GATEKEEPER:
     // Only NOT SPAM messages trigger phone notifications!
+    // Spam and Sus notifications are actively dismissed from the Android status bar.
     if (finalCategory == MessageCategory.notSpam) {
       await _notificationService.showSafeMessageNotification(newItem);
     } else {
       debugPrint('Notification suppressed: Message is ${finalCategory.name}. Quarantined silently.');
+      if (notificationKey != null && notificationKey.isNotEmpty) {
+        final dismissed = await _deviceMessageService.dismissSpamNotification(notificationKey);
+        debugPrint('Spam notification dismissal result: $dismissed (key: $notificationKey)');
+      }
     }
 
     return newItem;
