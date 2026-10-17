@@ -61,6 +61,9 @@ class _InboxScreenState extends State<InboxScreen> {
                 // Top Header: ScamShield Chats + Search + Supabase Auth
                 _buildHeader(context),
 
+                // Phone Identity Bar
+                _buildPhoneIdentityBar(),
+
                 // Search Bar (if opened)
                 if (_isSearchOpen) _buildSearchBar(),
 
@@ -229,6 +232,62 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPhoneIdentityBar() {
+    final verifiedPhone = SupabaseService().verifiedPhone;
+    final isVerified = verifiedPhone != null && verifiedPhone.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: InkWell(
+        onTap: _openAuthScreen,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: isVerified
+                ? const Color(0xFFE8F5E9)
+                : const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isVerified
+                  ? const Color(0xFFA5D6A7)
+                  : const Color(0xFFFFE082),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isVerified ? Icons.phone_android_rounded : Icons.phone_rounded,
+                size: 16,
+                color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isVerified
+                      ? 'My Phone: $verifiedPhone'
+                      : 'Tap to verify phone number & enable direct messaging',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isVerified
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFF57F17),
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 11,
+                color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

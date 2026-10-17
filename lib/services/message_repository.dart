@@ -121,10 +121,12 @@ class MessageRepository extends ChangeNotifier {
     _supabaseService.subscribeToMessages((record) {
       final sender = record['sender'] as String? ?? '';
       final body = record['body'] as String? ?? '';
-      final currentEmail = _supabaseService.currentUser?.email ?? '';
+      final myId = _supabaseService.currentSenderIdentifier;
 
-      // Skip messages sent from this exact account (already visible as outgoing)
-      if (currentEmail.isNotEmpty && sender.toLowerCase() == currentEmail.toLowerCase()) {
+      // Skip messages sent from this exact account / phone (already visible as outgoing)
+      final normSender = sender.toLowerCase().replaceAll(RegExp(r'[\s\-()]'), '');
+      final normMyId = myId.toLowerCase().replaceAll(RegExp(r'[\s\-()]'), '');
+      if (normMyId.isNotEmpty && normSender == normMyId) {
         return;
       }
 

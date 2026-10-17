@@ -3,6 +3,8 @@ import '../services/message_repository.dart';
 import '../theme/app_colors.dart';
 import 'chat_conversation_screen.dart';
 
+import '../services/supabase_service.dart';
+
 class ComposeMessageSheet extends StatefulWidget {
   final MessageRepository repository;
 
@@ -25,9 +27,17 @@ class ComposeMessageSheet extends StatefulWidget {
 }
 
 class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
-  final _recipientController = TextEditingController(text: 'Rohan Sharma');
+  late final TextEditingController _recipientController;
   final _messageController = TextEditingController();
   bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final myPhone = SupabaseService().currentSenderIdentifier.replaceAll(RegExp(r'[\s\-]'), '');
+    final defaultRecipient = myPhone.contains('9876500001') ? '+91 98765 00002' : '+91 98765 00001';
+    _recipientController = TextEditingController(text: defaultRecipient);
+  }
 
   @override
   void dispose() {
@@ -182,13 +192,15 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  _buildContactChip('+91 98765 00001'),
+                  const SizedBox(width: 8),
+                  _buildContactChip('+91 98765 00002'),
+                  const SizedBox(width: 8),
                   _buildContactChip('Rohan Sharma'),
                   const SizedBox(width: 8),
                   _buildContactChip('Mom'),
                   const SizedBox(width: 8),
                   _buildContactChip('HDFC Bank'),
-                  const SizedBox(width: 8),
-                  _buildContactChip('+1 555-0192'),
                 ],
               ),
             ),
@@ -196,7 +208,7 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
 
             // Recipient Field
             const Text(
-              'To:',
+              'To (Phone Number or Contact):',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -207,8 +219,8 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
             TextField(
               controller: _recipientController,
               decoration: InputDecoration(
-                hintText: 'Enter contact name or phone number',
-                prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.textSecondary),
+                hintText: 'e.g. +91 98765 00002 or contact name',
+                prefixIcon: const Icon(Icons.phone_iphone_rounded, color: AppColors.textSecondary),
                 filled: true,
                 fillColor: AppColors.background,
                 border: OutlineInputBorder(

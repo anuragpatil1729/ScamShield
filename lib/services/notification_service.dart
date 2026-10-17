@@ -97,4 +97,39 @@ class NotificationService {
       notificationDetails: notificationDetails,
     );
   }
+
+  /// Displays simulated SMS verification code notification for quick testing
+  Future<void> showOtpNotification({
+    required String otp,
+    required String phone,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'otp_channel',
+      'Phone Verification OTP',
+      channelDescription: 'Simulated SMS verification code for direct messaging',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      enableVibration: true,
+    );
+
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+      macOS: darwinDetails,
+    );
+
+    await _notificationsPlugin.show(
+      id: 99999,
+      title: 'SMS: Verification Code $otp',
+      body: '$otp is your ScamShield verification code for $phone. Valid for 10 minutes.',
+      notificationDetails: notificationDetails,
+    );
+  }
 }
