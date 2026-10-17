@@ -1,10 +1,14 @@
 package com.scamshield.scamshield
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.provider.Telephony
+import android.telephony.SmsManager
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -16,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     companion object {
+        private const val TAG = "ScamShieldMainActivity"
         private const val METHOD_CHANNEL = "com.scamshield/device_messages"
         private const val EVENT_CHANNEL = "com.scamshield/incoming_messages"
         private const val SMS_PERMISSION_REQUEST_CODE = 2001
@@ -60,7 +65,7 @@ class MainActivity : FlutterActivity() {
                 }
             })
 
-        // MethodChannel for SMS queries, permissions, and dismissing spam notifications
+        // MethodChannel for SMS queries, dispatch, permissions, and dismissing spam notifications
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, METHOD_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -73,7 +78,11 @@ class MainActivity : FlutterActivity() {
                             this,
                             Manifest.permission.RECEIVE_SMS
                         ) == PackageManager.PERMISSION_GRANTED
-                        result.success(hasRead && hasReceive)
+                        val hasSend = ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.SEND_SMS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        result.success(hasRead && hasReceive && hasSend)
                     }
 
                     "requestSmsPermission" -> {
@@ -83,6 +92,9 @@ class MainActivity : FlutterActivity() {
                         }
                         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
                             permissionsToRequest.add(Manifest.permission.RECEIVE_SMS)
+                        }
+                        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                            permissionsToRequest.add(Manifest.permission.SEND_SMS)
                         }
 
                         if (permissionsToRequest.isEmpty()) {
@@ -103,6 +115,65 @@ class MainActivity : FlutterActivity() {
                         val limit = call.argument<Int>("limit") ?: 100
                         val messages = SmsInboxReader.readInboxMessages(this, limit)
                         result.success(messages)
+                    }
+
+                    "sendSms" -> {
+                        val recipient = call.argument<String>("recipient") ?: ""
+                        val message = call.argument<String>("message") ?: ""
+
+                        if (recipient.isBlank() || message.isBlank()) {
+                            result.error("INVALID_ARGS", "Recipient and message cannot be empty", null)
+                            return@setMethodCallHandler
+                        }
+
+                        val hasSend = ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.SEND_SMS
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (!hasSend) {
+                            ActivityCompat.requestPermissions(
+                                this,
+                                arrayOf(Manifest.permission.SEND_SMS),
+                                SMS_PERMISSION_REQUEST_CODE
+                            )
+                            result.error("PERMISSION_DENIED", "SEND_SMS permission not granted", null)
+                            return@setMethodCallHandler
+                        }
+
+                        try {
+                            val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                getSystemService(SmsManager::class.java)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                SmsManager.getDefault()
+                            }
+
+                            val parts = smsManager.divideMessage(message)
+                            if (parts.size > 1) {
+                                smsManager.sendMultipartTextMessage(recipient, null, parts, null, null)
+                            } else {
+                                smsManager.sendTextMessage(recipient, null, message, null, null)
+                            }
+
+                            // Write sent message to Telephony.Sms.Sent content provider
+                            try {
+                                val values = ContentValues().apply {
+                                    put(Telephony.Sms.ADDRESS, recipient)
+                                    put(Telephony.Sms.BODY, message)
+                                    put(Telephony.Sms.DATE, System.currentTimeMillis())
+                                    put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
+                                }
+                                contentResolver.insert(Telephony.Sms.Sent.CONTENT_URI, values)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Note: writing to Sent SMS provider: ${e.message}")
+                            }
+
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error sending SMS: ${e.message}", e)
+                            result.error("SEND_FAILED", e.message, null)
+                        }
                     }
 
                     "hasNotificationAccess" -> {

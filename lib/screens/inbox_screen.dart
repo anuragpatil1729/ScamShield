@@ -3,10 +3,8 @@ import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import '../services/device_message_service.dart';
 import '../services/message_repository.dart';
-import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/filter_chip_bar.dart';
-import 'auth_screen.dart';
 import 'chat_conversation_screen.dart';
 import 'compose_message_sheet.dart';
 import 'message_detail_screen.dart';
@@ -47,18 +45,6 @@ class _InboxScreenState extends State<InboxScreen> {
     super.dispose();
   }
 
-  void _openAuthScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => AuthScreen(
-          onAuthSuccess: () {
-            setState(() {});
-          },
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -73,11 +59,11 @@ class _InboxScreenState extends State<InboxScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                // Top Header: ScamShield Chats + Search + Supabase Auth
+                // Top Header: ScamShield Chats + Search
                 _buildHeader(context),
 
-                // Phone Identity Bar
-                _buildPhoneIdentityBar(),
+                // Privacy Shield Bar
+                _buildPrivacyShieldBar(),
 
                 // Device SMS Sync & Protection Bar
                 _buildDeviceProtectionBar(),
@@ -144,8 +130,6 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final supabaseUser = SupabaseService().currentUser;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(
@@ -157,7 +141,7 @@ class _InboxScreenState extends State<InboxScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
-              Icons.chat_bubble_outline_rounded,
+              Icons.shield_outlined,
               size: 20,
               color: Colors.white,
             ),
@@ -186,7 +170,7 @@ class _InboxScreenState extends State<InboxScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
-                        'CHATS',
+                        'LOCAL SMS',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -199,7 +183,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Local AI Protection • Safe Notifications Only',
+                  '100% Private • On-Device AI Classification',
                   style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],
@@ -222,92 +206,45 @@ class _InboxScreenState extends State<InboxScreen> {
               });
             },
           ),
-
-          // Supabase Auth Profile Avatar / Login Button
-          GestureDetector(
-            onTap: _openAuthScreen,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: supabaseUser != null
-                      ? const Color(0xFF2E7D32)
-                      : AppColors.borderSubtle,
-                  width: 2,
-                ),
-              ),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: supabaseUser != null
-                    ? const Color(0xFFE8F5E9)
-                    : AppColors.surface,
-                child: Icon(
-                  supabaseUser != null ? Icons.person_rounded : Icons.login_rounded,
-                  size: 18,
-                  color: supabaseUser != null
-                      ? const Color(0xFF2E7D32)
-                      : AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildPhoneIdentityBar() {
-    final verifiedPhone = SupabaseService().verifiedPhone;
-    final isVerified = verifiedPhone != null && verifiedPhone.isNotEmpty;
-
+  Widget _buildPrivacyShieldBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      child: InkWell(
-        onTap: _openAuthScreen,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: isVerified
-                ? const Color(0xFFE8F5E9)
-                : const Color(0xFFFFF8E1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isVerified
-                  ? const Color(0xFFA5D6A7)
-                  : const Color(0xFFFFE082),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFA5D6A7)),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.verified_user_rounded,
+              size: 16,
+              color: Color(0xFF2E7D32),
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isVerified ? Icons.phone_android_rounded : Icons.phone_rounded,
-                size: 16,
-                color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isVerified
-                      ? 'My Phone: $verifiedPhone'
-                      : 'Tap to verify phone number & enable direct messaging',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isVerified
-                        ? const Color(0xFF2E7D32)
-                        : const Color(0xFFF57F17),
-                  ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '100% Private • Local On-Device AI • Carrier SMS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2E7D32),
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 11,
-                color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFF57F17),
-              ),
-            ],
-          ),
+            ),
+            Icon(
+              Icons.lock_rounded,
+              size: 13,
+              color: Color(0xFF2E7D32),
+            ),
+          ],
         ),
       ),
     );

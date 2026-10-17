@@ -100,6 +100,23 @@ class DeviceMessageService {
     }
   }
 
+  /// Send SMS directly through the device's cellular carrier via Android SmsManager
+  Future<bool> sendNativeSms({
+    required String recipient,
+    required String message,
+  }) async {
+    try {
+      final res = await _methodChannel.invokeMethod<bool>('sendSms', {
+        'recipient': recipient,
+        'message': message,
+      });
+      return res ?? false;
+    } catch (e) {
+      debugPrint('sendNativeSms error: $e');
+      return false;
+    }
+  }
+
   /// Real-time stream of incoming messages (SMS broadcast or intercepted notifications)
   Stream<Map<String, dynamic>> get incomingMessages {
     _incomingStream ??= _eventChannel

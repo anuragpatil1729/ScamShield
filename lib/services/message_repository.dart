@@ -5,11 +5,9 @@ import '../models/shield_stats_model.dart';
 import 'classifier_service.dart';
 import 'device_message_service.dart';
 import 'notification_service.dart';
-import 'supabase_service.dart';
 
 class MessageRepository extends ChangeNotifier {
   SpamClassifierService _classifierService;
-  final SupabaseService _supabaseService = SupabaseService();
   final NotificationService _notificationService = NotificationService();
   final DeviceMessageService _deviceMessageService = DeviceMessageService();
 
@@ -31,8 +29,8 @@ class MessageRepository extends ChangeNotifier {
   }
 
   SpamClassifierService get classifierService => _classifierService;
-  SupabaseService get supabaseService => _supabaseService;
   NotificationService get notificationService => _notificationService;
+  DeviceMessageService get deviceMessageService => _deviceMessageService;
 
   List<ChatConversation> _conversations = [];
   String _searchQuery = '';
@@ -114,9 +112,7 @@ class MessageRepository extends ChangeNotifier {
 
   Future<void> _initServices() async {
     try {
-      await _supabaseService.initialize();
       await _notificationService.initialize();
-      _setupSupabaseRealtime();
       _setupDeviceMessageListener();
 
       // Automatically sync SMS if permission was already granted previously
@@ -242,32 +238,7 @@ class MessageRepository extends ChangeNotifier {
     return addedCount;
   }
 
-  void _setupSupabaseRealtime() {
-    _supabaseService.subscribeToMessages((record) {
-      final sender = record['sender'] as String? ?? '';
-      final body = record['body'] as String? ?? '';
-      final myId = _supabaseService.currentSenderIdentifier;
-
-      // Skip messages sent from this exact account / phone (already visible as outgoing)
-      final normSender = sender.toLowerCase().replaceAll(RegExp(r'[\s\-()]'), '');
-      final normMyId = myId.toLowerCase().replaceAll(RegExp(r'[\s\-()]'), '');
-      if (normMyId.isNotEmpty && normSender == normMyId) {
-        return;
-      }
-
-      if (body.isEmpty) return;
-
-      // New message from another user/device:
-      // Run ON-DEVICE Layer 1 rule scorer + pre-open notification gatekeeper!
-      receiveIncomingMessage(
-        chatId: sender,
-        sender: sender,
-        text: body,
-      );
-    });
-  }
-
-  /// Send an outgoing message in a WhatsApp chat conversation
+  /// Send an outgoing message via Android SmsManager directly through carrier network
   Future<MessageItem> sendOutgoingMessage({
     required String chatId,
     required String text,
@@ -292,12 +263,12 @@ class MessageRepository extends ChangeNotifier {
     _appendMessageToChat(chatId, newItem, contactName: recipientName);
     notifyListeners();
 
-    // Broadcast through Supabase messages table so the second device receives it in Realtime
+    // Dispatch locally via Android SmsManager directly through carrier network
     final conv = getConversation(chatId);
     final recipient = conv?.phoneOrHandle ?? chatId;
-    _supabaseService.sendChatMessage(
-      body: text,
+    _deviceMessageService.sendNativeSms(
       recipient: recipient,
+      message: text,
     );
 
     return newItem;

@@ -3,8 +3,6 @@ import '../services/message_repository.dart';
 import '../theme/app_colors.dart';
 import 'chat_conversation_screen.dart';
 
-import '../services/supabase_service.dart';
-
 class ComposeMessageSheet extends StatefulWidget {
   final MessageRepository repository;
 
@@ -34,9 +32,7 @@ class _ComposeMessageSheetState extends State<ComposeMessageSheet> {
   @override
   void initState() {
     super.initState();
-    final myPhone = SupabaseService().currentSenderIdentifier.replaceAll(RegExp(r'[\s\-]'), '');
-    final defaultRecipient = myPhone.contains('9876500001') ? '+91 98765 00002' : '+91 98765 00001';
-    _recipientController = TextEditingController(text: defaultRecipient);
+    _recipientController = TextEditingController();
   }
 
   @override
