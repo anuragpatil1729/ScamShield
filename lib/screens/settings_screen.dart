@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/message_repository.dart';
-import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
-import 'auth_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final MessageRepository repository;
@@ -100,83 +98,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAccountCard() {
-    final user = SupabaseService().currentUser;
-    final isLoggedIn = user != null;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isLoggedIn ? const Color(0xFF81C784) : AppColors.borderSubtle,
-        ),
+        border: Border.all(color: const Color(0xFF81C784)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isLoggedIn
-                  ? const Color(0xFFE8F5E9)
-                  : AppColors.primaryDark.withValues(alpha: 0.08),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE8F5E9),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              isLoggedIn ? Icons.verified_user_rounded : Icons.account_circle_outlined,
-              color: isLoggedIn ? const Color(0xFF2E7D32) : AppColors.primaryDark,
+            child: const Icon(
+              Icons.verified_user_rounded,
+              color: Color(0xFF2E7D32),
               size: 24,
             ),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isLoggedIn ? 'Account Active' : 'Login / Signup',
-                  style: const TextStyle(
+                  '100% Private Shield',
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
-                  isLoggedIn
-                      ? (user.email ?? 'Logged In')
-                      : 'Sign in or create account',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  'Zero cloud storage • All messages stay on device',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (ctx) => AuthScreen(
-                    onAuthSuccess: () => setState(() {}),
-                  ),
-                ),
-              ).then((_) => setState(() {}));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isLoggedIn ? AppColors.surface : AppColors.primaryDark,
-              foregroundColor: isLoggedIn ? AppColors.primaryDark : Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              side: isLoggedIn ? const BorderSide(color: AppColors.borderSubtle) : BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFA5D6A7)),
             ),
-            child: Text(
-              isLoggedIn ? 'Manage' : 'Sign In',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            child: const Text(
+              'ACTIVE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF2E7D32),
+              ),
             ),
           ),
         ],

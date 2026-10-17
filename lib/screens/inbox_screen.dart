@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../services/device_message_service.dart';
 import '../services/message_repository.dart';
-import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/filter_chip_bar.dart';
-import 'auth_screen.dart';
 import 'chat_conversation_screen.dart';
 import 'compose_message_sheet.dart';
 import 'message_detail_screen.dart';
@@ -25,23 +24,25 @@ class InboxScreen extends StatefulWidget {
 class _InboxScreenState extends State<InboxScreen> {
   bool _isSearchOpen = false;
   final TextEditingController _searchController = TextEditingController();
+  bool _hasNotifAccess = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNotificationAccess();
+  }
+
+  Future<void> _checkNotificationAccess() async {
+    final access = await DeviceMessageService().hasNotificationAccess();
+    if (mounted) {
+      setState(() => _hasNotifAccess = access);
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _openAuthScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => AuthScreen(
-          onAuthSuccess: () {
-            setState(() {});
-          },
-        ),
-      ),
-    );
   }
 
   @override
@@ -58,8 +59,17 @@ class _InboxScreenState extends State<InboxScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                // Top Header: ScamShield Chats + Search + Supabase Auth
+                // Top Header: ScamShield Chats + Search
                 _buildHeader(context),
+
+                // Privacy Shield Bar
+                _buildPrivacyShieldBar(),
+
+                // Device SMS Sync & Protection Bar
+                _buildDeviceProtectionBar(),
+
+                // Notification Access prompt if not enabled
+                if (!_hasNotifAccess) _buildNotificationAccessBanner(),
 
                 // Search Bar (if opened)
                 if (_isSearchOpen) _buildSearchBar(),
@@ -120,8 +130,6 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final supabaseUser = SupabaseService().currentUser;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(
@@ -133,7 +141,7 @@ class _InboxScreenState extends State<InboxScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
-              Icons.chat_bubble_outline_rounded,
+              Icons.shield_outlined,
               size: 20,
               color: Colors.white,
             ),
@@ -162,7 +170,7 @@ class _InboxScreenState extends State<InboxScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
-                        'CHATS',
+                        'LOCAL SMS',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -175,7 +183,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Local AI Protection • Safe Notifications Only',
+                  '100% Private • On-Device AI Classification',
                   style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],
@@ -198,37 +206,167 @@ class _InboxScreenState extends State<InboxScreen> {
               });
             },
           ),
+        ],
+      ),
+    );
+  }
 
-          // Supabase Auth Profile Avatar / Login Button
-          GestureDetector(
-            onTap: _openAuthScreen,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: supabaseUser != null
-                      ? const Color(0xFF2E7D32)
-                      : AppColors.borderSubtle,
-                  width: 2,
-                ),
-              ),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: supabaseUser != null
-                    ? const Color(0xFFE8F5E9)
-                    : AppColors.surface,
-                child: Icon(
-                  supabaseUser != null ? Icons.person_rounded : Icons.login_rounded,
-                  size: 18,
-                  color: supabaseUser != null
-                      ? const Color(0xFF2E7D32)
-                      : AppColors.textSecondary,
+  Widget _buildPrivacyShieldBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFA5D6A7)),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.verified_user_rounded,
+              size: 16,
+              color: Color(0xFF2E7D32),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '100% Private • Local On-Device AI • Carrier SMS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2E7D32),
                 ),
               ),
             ),
+            Icon(
+              Icons.lock_rounded,
+              size: 13,
+              color: Color(0xFF2E7D32),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceProtectionBar() {
+    final isSyncing = widget.repository.isSyncingDeviceSms;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: AppColors.primaryDark.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.mark_chat_unread_rounded, size: 15, color: AppColors.primaryDark),
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Default Messages Protection',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  Text(
+                    'Scanning SMS & silencing live spam notifications',
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            InkWell(
+              onTap: isSyncing
+                  ? null
+                  : () async {
+                      final count = await widget.repository.syncDeviceSms();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(count > 0
+                                ? 'Protected & synced $count messages from default app'
+                                : 'SMS inbox is already up to date'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryDark,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSyncing)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    else
+                      const Icon(Icons.sync_rounded, size: 13, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      isSyncing ? 'Syncing...' : 'Sync SMS',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationAccessBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      child: InkWell(
+        onTap: () async {
+          await DeviceMessageService().requestNotificationAccess();
+          Future.delayed(const Duration(seconds: 2), _checkNotificationAccess);
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDE7F6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFD1C4E9)),
           ),
-        ],
+          child: const Row(
+            children: [
+              Icon(Icons.notifications_active_rounded, size: 15, color: Color(0xFF5E35B1)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tap to enable Notification Listener (Silences spam notifications in real-time)',
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF5E35B1)),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFF5E35B1)),
+            ],
+          ),
+        ),
       ),
     );
   }
